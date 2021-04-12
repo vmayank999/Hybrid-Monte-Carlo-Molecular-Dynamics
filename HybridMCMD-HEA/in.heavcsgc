@@ -1,0 +1,84 @@
+variable        xbox equal 20
+variable        ybox equal 20
+variable        zbox equal 20
+variable	temperature equal 700
+variable	size equal 10
+variable	nsteps_run equal 100000
+
+variable        a equal 3.556
+
+variable        dx equal sqrt(6)/2
+variable        dy equal sqrt(2)
+variable        dz equal sqrt(3)
+
+
+variable xlength equal ${xbox}*${dx}*$a
+variable ylength equal ${ybox}*${dy}*$a
+variable zlength equal ${zbox}*${dz}*$a
+variable zhalf equal ${zlength}/2
+
+variable b2 equal ${a}/${dy}/2
+
+
+# variables for 'fix sgcmc'
+variable	nsteps_mc     equal 100
+variable	swap_fraction equal 1
+variable	temperature_mc equal ${temperature}
+variable	deltamu equal -0.70
+variable	target_concentration equal 0.2
+variable	kappa equal 1e3
+
+
+# -------------- store initial positions of central glide plane (CGP) ----------------------------
+dimension       3
+boundary        p p p
+units metal
+atom_style      atomic  
+
+
+# -------------- creating a upper & lower regions and as well as - region & simulation box ----------------------
+
+lattice fcc ${a} orient x 1 1 -2 orient y 1 -1 0 orient z -1 -1 -1 spacing ${dx} ${dy} ${dz} origin 0.0 0.0 0.0
+region whole block 0.000000 ${xlength} 0.000000 ${ylength} 0.0 ${zlength} units box
+create_box 	5 whole
+
+create_atoms 	1 region whole
+
+
+mass		1 55.8
+mass		2 58.7
+mass		3 52.0
+mass		4 59.0
+mass		5 63.0
+ 
+reset_timestep	0
+timestep	0.0025
+
+pair_style 	eam/alloy 
+pair_coeff 	* * hea.eam.alloy Fe Ni Cr Co Cu
+
+# initialize velocities
+variable	double_temp equal ${temperature}*2
+velocity	all create ${double_temp} 428459 dist gaussian
+
+
+# what and how to run
+fix		integrate all npt &
+		temp ${temperature} ${temperature} 0.2 &
+		iso 1.013 1.013 0.4
+fix		mc all sgcmc ${nsteps_mc} ${swap_fraction} ${temperature_mc} -0.7 -0.85 -0.9 -0.92 &
+		randseed 324234 &
+		variance ${kappa} 0.2 0.2 0.2 0.2
+
+# set up output
+thermo		10
+thermo_style	custom step temp atoms pe press &
+		lx ly lz f_mc[3] f_mc[4] f_mc[5] f_mc[6] f_mc[7]
+thermo_modify	flush yes
+dump 		1 all custom 2000 mc11.dump id type x y z
+
+run		${nsteps_run}
+
+
+
+
